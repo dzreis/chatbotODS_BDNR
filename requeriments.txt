@@ -1,0 +1,8 @@
+langchain
+pymupdf
+chromadb
+sentence-transformers
+
+pymongo
+ollama
+streamlit

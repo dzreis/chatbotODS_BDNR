@@ -1,0 +1,1 @@
+# Inicia a aplicação
