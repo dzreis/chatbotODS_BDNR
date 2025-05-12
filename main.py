@@ -1,6 +1,6 @@
 # Inicia a aplicação
 import streamlit as st
-from chat_chain import build_retriever_chain
+from retriever_chain import build_retriever_chain
 from config import modelo_llm
 
 # Configuração da página
