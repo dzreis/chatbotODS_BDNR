@@ -3,8 +3,7 @@ from langchain_community.llms import Ollama
 import logging
 import subprocess
 import json
-
-model_name = 'llama3.2'
+from config import modelo_llm
 
 def list_ollama_models():
     """
@@ -20,19 +19,19 @@ def list_ollama_models():
         logging.error("Erro ao executar 'ollama list'. Verifique se o Ollama está instalado e em execução.")
         return []
 
-def get_ollama_llm(model_name="llama3", temperature=0.1):
+def get_ollama_llm(modelo_llm, temperature=0.1):
     """
     Retorna um objeto LLM integrado ao Langchain usando um modelo do Ollama.
     """
     available_models = list_ollama_models()
-    if model_name not in available_models:
-        logging.warning(f"Modelo '{model_name}' não encontrado no Ollama. Modelos disponíveis: {available_models}")
-        raise ValueError(f"Modelo '{model_name}' não está disponível no Ollama local.")
+    if modelo_llm not in available_models:
+        logging.warning(f"Modelo '{modelo_llm}' não encontrado no Ollama. Modelos disponíveis: {available_models}")
+        raise ValueError(f"Modelo '{modelo_llm}' não está disponível no Ollama local.")
 
     try:
-        llm = Ollama(model=model_name, temperature=temperature)
-        logging.info(f"Modelo LLM '{model_name}' carregado com sucesso via Ollama.")
+        llm = Ollama(model=modelo_llm, temperature=temperature)
+        logging.info(f"Modelo LLM '{modelo_llm}' carregado com sucesso via Ollama.")
         return llm
     except Exception as e:
-        logging.error(f"Erro ao inicializar o modelo '{model_name}' com Ollama: {e}")
+        logging.error(f"Erro ao inicializar o modelo '{modelo_llm}' com Ollama: {e}")
         raise
