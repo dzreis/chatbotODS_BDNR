@@ -15,7 +15,7 @@ from datetime import datetime
 bd = "mongodb+srv://giugarrido:<senha>@aulamongo.s297u.mongodb.net/"
 
 def conectar():
-  STRING = "mongodb+srv://giugarrido:MongoAtlas2025@aulamongo.s297u.mongodb.net/"
+  STRING = "mongodb+srv://giugarrido:<senha>@aulamongo.s297u.mongodb.net/"
   try:
     client = MongoClient(STRING)
     db = client["chat_bot"]
