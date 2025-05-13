@@ -12,7 +12,7 @@ Original file is located at
 from pymongo import MongoClient
 from datetime import datetime
 
-bd = "mongodb+srv://giugarrido:MongoAtlas2025@aulamongo.s297u.mongodb.net/"
+bd = "mongodb+srv://giugarrido:<senha>@aulamongo.s297u.mongodb.net/"
 
 def conectar():
   STRING = "mongodb+srv://giugarrido:MongoAtlas2025@aulamongo.s297u.mongodb.net/"
