@@ -3,7 +3,7 @@ import logging
 from langchain.vectorstores import Chroma
 from langchain.chains import RetrievalQA
 from langchain.embeddings import HuggingFaceEmbeddings
-from ollama_llm import get_ollama_llm
+from chat.ollama_llm import get_ollama_llm
 from config import modelo, modelo_llm
 
 def load_vectorstore(persist_directory="vectorstore"):
@@ -26,7 +26,7 @@ def build_retriever_chain(modelo_llm, persist_directory="vectorstore"):
     """
     Cria a cadeia de QA usando Ollama LLM + Chroma Retriever.
     """
-    llm = get_ollama_llm(model_name=modelo_llm)
+    llm = get_ollama_llm(modelo_llm)
     vectordb = load_vectorstore(persist_directory)
     retriever = vectordb.as_retriever(search_kwargs={"k": 4})
 

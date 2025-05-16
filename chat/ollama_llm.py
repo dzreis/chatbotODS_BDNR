@@ -10,14 +10,17 @@ def list_ollama_models():
     Lista os modelos disponíveis localmente no Ollama.
     """
     try:
-        result = subprocess.run(["ollama", "list", "--json"], capture_output=True, text=True, check=True)
-        model_data = json.loads(result.stdout)
-        models = [model["name"] for model in model_data.get("models", [])]
+        result = subprocess.run(["ollama", "list"], capture_output=True, text=True, check=True)
+        lines = result.stdout.strip().splitlines()
+
+        # Pular o cabeçalho e extrair o nome de cada linha
+        models = [line.split()[0] for line in lines[1:] if line.strip()]
         logging.info(f"Modelos disponíveis no Ollama: {models}")
         return models
     except subprocess.CalledProcessError as e:
         logging.error("Erro ao executar 'ollama list'. Verifique se o Ollama está instalado e em execução.")
         return []
+
 
 def get_ollama_llm(modelo_llm, temperature=0.1):
     """
