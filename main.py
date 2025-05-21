@@ -1,7 +1,18 @@
 # Inicia a aplicação
+import logging
 import streamlit as st
 from chat.retriever_chain import build_retriever_chain
 from config import modelo_llm
+
+# Configuração do logging
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(message)s",
+    handlers=[
+        logging.FileHandler("initialize_documents.log"),
+        logging.StreamHandler()
+    ]
+)
 
 # Configuração da página
 st.set_page_config(page_title="Combate a violência contra mulheres", layout="wide")

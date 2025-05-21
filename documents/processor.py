@@ -1,9 +1,19 @@
 # Funções para extrair e chunkar os textos
+import logging
 import os
 import json
 import fitz  # PyMuPDF
 from langchain.text_splitter import RecursiveCharacterTextSplitter
-import logging
+
+# Configuração do logging
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(message)s",
+    handlers=[
+        logging.FileHandler("initialize_documents.log"),
+        logging.StreamHandler()
+    ]
+)
 
 def extract_text(folder_path):
     """
