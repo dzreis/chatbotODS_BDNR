@@ -5,16 +5,6 @@ import json
 import fitz  # PyMuPDF
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 
-# Configuração do logging
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(message)s",
-    handlers=[
-        logging.FileHandler("initialize_documents.log"),
-        logging.StreamHandler()
-    ]
-)
-
 def extract_text(folder_path):
     """
     Extrai texto de todos os arquivos PDF da pasta.

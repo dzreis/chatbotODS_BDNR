@@ -3,16 +3,6 @@ import logging
 from langchain.vectorstores import Chroma
 from langchain.schema.document import Document
 
-# Configuração do logging
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(message)s",
-    handlers=[
-        logging.FileHandler("initialize_documents.log"),
-        logging.StreamHandler()
-    ]
-)
-
 def embeddar(chunks, persist_directory, embedding_model):
     """
     Gera embeddings para os chunks e os armazena no ChromaDB local.

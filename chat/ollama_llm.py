@@ -1,17 +1,7 @@
 import logging
 import subprocess
-from langchain_community.llms.ollama import Ollama  # Certifique-se de usar o correto
-from config import modelo_llm  # Certifique-se de que modelo_llm é uma string com o nome do modelo
-
-# Configuração do logging
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(message)s",
-    handlers=[
-        logging.FileHandler("initialize_documents.log"),
-        logging.StreamHandler()
-    ]
-)
+from langchain_community.llms.ollama import Ollama
+from config import modelo_llm
 
 def list_ollama_models():
     """

@@ -4,16 +4,6 @@ from langchain.embeddings import HuggingFaceEmbeddings
 from processor import extract_text, chunking, save_jsonl
 from embedding_store import embeddar
 
-# Configuração do logging
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(message)s",
-    handlers=[
-        logging.FileHandler("initialize_documents.log"),
-        logging.StreamHandler()
-    ]
-)
-
 FILES_DIR = "files"
 OUTPUT_JSONL = "content.jsonl"
 CHROMA_DIR = "vectorstore"

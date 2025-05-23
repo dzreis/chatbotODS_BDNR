@@ -3,16 +3,6 @@ from pymongo import MongoClient
 from datetime import datetime
 from typing import List, Dict
 
-# Configuração do logging
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(message)s",
-    handlers=[
-        logging.FileHandler("initialize_documents.log"),
-        logging.StreamHandler()
-    ]
-)
-
 # Conexão com o MongoDB
 client = MongoClient("mongodb://localhost:27017/")  # Ajuste a URI conforme necessário
 db = client["chatbot"]
