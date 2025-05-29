@@ -29,6 +29,7 @@ def build_retriever_chain(modelo_llm: str, persist_directory: str = "vectorstore
     Cria a cadeia de QA usando o modelo Ollama LLM + Chroma como retriever, com memória de conversa.
     """
     try:
+        print(f"Carregando modelo LLM: {modelo_llm}")
         llm: BaseLLM = get_ollama_llm(modelo_llm)
         vectordb: Chroma = load_vectorstore(persist_directory)
         retriever = vectordb.as_retriever(search_kwargs={"k": 4})
@@ -36,7 +37,9 @@ def build_retriever_chain(modelo_llm: str, persist_directory: str = "vectorstore
         # Memória da conversa
         memory = ConversationBufferMemory(
             memory_key="chat_history",
-            return_messages=True
+            input_key="question",
+            return_messages=True,
+            output_key="answer"
         )
 
         # Prompt estruturado em inglês
@@ -87,11 +90,13 @@ Follow a structured reasoning process to ensure accurate answers. Use **Chain-of
 
         qa_chain = RetrievalQA.from_chain_type(
             llm=llm,
+            chain_type="stuff",
             retriever=retriever,
             return_source_documents=True,
-            chain_type="stuff",
-            memory=memory,
-            chain_type_kwargs={"prompt": prompt_template}
+            chain_type_kwargs={
+                "prompt": prompt_template,
+                "verbose": True
+            }
         )
 
         logging.info("Cadeia de QA com retriever, memória e prompt customizado criada com sucesso.")

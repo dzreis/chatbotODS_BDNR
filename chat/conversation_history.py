@@ -1,26 +1,37 @@
+import os
+import sys
 import logging
 from pymongo import MongoClient
 from datetime import datetime
 from typing import List, Dict
+from dotenv import load_dotenv
+
+project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.append(project_root)
+
+from db.mongo_client import conectar
 
 # Conexão com o MongoDB
-client = MongoClient("mongodb://localhost:27017/")  # Ajuste a URI conforme necessário
-db = client["chatbot"]
-collection = db["conversation_history"]
+db = conectar()
 
-def salvar_interacao(usuario: str, pergunta: str, resposta: str) -> None:
+colecao_usuarios = db.usuarios
+colecao_conversas = db.conversas
+
+def salvar_interacao(usuario_id: str, pergunta: str, resposta: str) -> None:
     """
-    Salva uma interação (pergunta e resposta) com timestamp no banco MongoDB.
+    Salva uma interação (pergunta e resposta) com timestamp no banco MongoDB
+    na estrutura com campo 'cod' e lista 'mensagens'.
     """
     try:
-        doc = {
-            "usuario": usuario,
-            "pergunta": pergunta,
-            "resposta": resposta,
-            "timestamp": datetime.now()
+        conversa = {
+            "cod": usuario_id,
+            "mensagens": [
+                {"tipo": "usuario", "texto": pergunta, "timestamp": datetime.now()},
+                {"tipo": "bot", "texto": resposta, "timestamp": datetime.now()}
+            ]
         }
-        collection.insert_one(doc)
-        logging.info(f"Interação salva com sucesso para usuário: {usuario}")
+        colecao_conversas.insert_one(conversa)
+        logging.info(f"Interação salva com sucesso para usuário: {usuario_id}")
     except Exception as e:
         logging.error(f"Erro ao salvar histórico: {e}")
 
@@ -30,17 +41,10 @@ def recuperar_historico(usuario: str, limite: int = 10) -> List[Dict]:
     """
     try:
         historico = list(
-            collection.find({"usuario": usuario}).sort("timestamp", -1).limit(limite)
+            colecao_conversas.find({"usuario": usuario}).sort("timestamp", -1).limit(limite)
         )
         logging.info(f"{len(historico)} interações recuperadas para usuário: {usuario}")
         return historico
     except Exception as e:
         logging.error(f"Erro ao recuperar histórico: {e}")
         return []
-
-# Exemplo de uso (remova em produção)
-if __name__ == "__main__":
-    salvar_interacao("joao", "Qual a capital do Brasil?", "A capital do Brasil é Brasília.")
-    historico = recuperar_historico("joao")
-    for h in historico:
-        print(f"[{h['timestamp']}] {h['pergunta']} → {h['resposta']}")
