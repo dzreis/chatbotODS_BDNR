@@ -1,9 +1,14 @@
 import logging
+import os
 import streamlit as st
 from chat.retriever_chain import build_retriever_chain
 from config import modelo_llm
 from db.mongo_client import armazenar_conversas
 from db.login import show_login_page
+from dotenv import load_dotenv
+from visualization.graph import ChatbotMindMapGenerator
+import matplotlib.pyplot as plt
+import networkx as nx
 
 # Configuração do logging
 logging.basicConfig(
@@ -102,9 +107,28 @@ else:
                 "text": "Desculpe, ocorreu um erro interno. Tente reformular sua pergunta."
             })
 
-    # Exibe histórico
     for msg in st.session_state.chat_history:
         if msg["role"] == "user":
             st.chat_message("user").write(msg["text"])
         else:
             st.chat_message("assistant").write(msg["text"])
+
+    # Adiciona separador visual
+    st.markdown("---")
+
+    # Seção de análise do grafo
+    st.sidebar.markdown("## Análise de Conversas")
+    if st.sidebar.button("Gerar Análise"):
+        load_dotenv()
+        mongo_uri = os.getenv("MONGO_URI")
+        mindmap_generator = ChatbotMindMapGenerator(mongo_uri, "chat_bot", "conversas")
+        G, keywords, similarity_matrix = mindmap_generator.run_full_analysis(
+            usuario_id=st.session_state.user["id"],
+            limit=500,
+            days_back=30
+        )
+        if G is not None and keywords is not None and similarity_matrix is not None:
+            st.subheader("Mapa Mental das Conversas")
+            mindmap_generator.visualize_graph_streamlit(G, keywords)
+        else:
+            st.warning("Não foi possível gerar a análise. Verifique se existem mensagens suficientes.")

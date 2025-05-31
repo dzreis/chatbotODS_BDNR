@@ -221,16 +221,36 @@ def conversas_usuarios(bd):
     return list(colecao_conversas.aggregate(agregacao))
 
 def armazenar_conversas(bd, usuario_id, pergunta, resposta):
-    conversa = {
-        "cod": usuario_id,
-        "mensagens": [
-            {"tipo": "usuario", "texto": pergunta},
-            {"tipo": "bot", "texto": resposta}
+    try:
+        # Procura documento existente do usuário
+        conversa = colecao_conversas.find_one({"cod": usuario_id})
+        
+        nova_mensagem = [
+            {"tipo": "usuario", "texto": pergunta, "timestamp": datetime.now()},
+            {"tipo": "bot", "texto": resposta, "timestamp": datetime.now()}
         ]
-    }
+        
+        if conversa:
+            # Atualiza documento existente
+            resultado = colecao_conversas.update_one(
+                {"cod": usuario_id},
+                {"$push": {"mensagens": {"$each": nova_mensagem}}}
+            )
+            return resultado.modified_count > 0
+        else:
+            # Cria novo documento
+            conversa = {
+                "cod": usuario_id,
+                "mensagens": nova_mensagem,
+                "created_at": datetime.now(),
+                "updated_at": datetime.now()
+            }
+            resultado = colecao_conversas.insert_one(conversa)
+            return resultado.inserted_id
 
-    resultado = colecao_conversas.insert_one(conversa)
-    return resultado.inserted_id
+    except Exception as e:
+        logging.error(f"Erro ao armazenar conversa: {e}")
+        return None
 
 #if __name__ == "__main__":
   #menu()
