@@ -16,7 +16,7 @@ logging.basicConfig(
 )
 
 # Configuração da página
-st.set_page_config(page_title="Combate a violência contra mulheres", layout="wide")
+st.set_page_config(page_title="Sua vida e segurança importam", layout="wide")
 
 # Inicialização do estado da sessão
 if "user" not in st.session_state:
@@ -29,8 +29,8 @@ if "chat_history" not in st.session_state:
 if not st.session_state.user:
     show_login_page()
 else:
-    st.title("📄🔒 ProtegeEla")
-    st.subheader("Se você está sofrendo violência ou conhece alguém nessa situação, ligue para o 180 e busque ajuda — sua vida e segurança importam.")
+    st.title("📢 ProtegeEla")
+    st.subheader("Se você está sofrendo violência ou conhece alguém nessa situação, busque ajuda - disque 180")
     
     # Mostrar informações do usuário
     st.sidebar.write(f"Usuário: {st.session_state.user['nome']}")
