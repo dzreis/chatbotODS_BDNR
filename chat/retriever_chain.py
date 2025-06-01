@@ -1,6 +1,6 @@
 import logging
 from langchain.vectorstores import Chroma
-from langchain.chains import RetrievalQA
+from langchain.chains import ConversationalRetrievalChain
 from langchain.embeddings import HuggingFaceEmbeddings
 from langchain.llms.base import BaseLLM
 from langchain.memory import ConversationBufferMemory
@@ -24,7 +24,7 @@ def load_vectorstore(persist_directory: str = "vectorstore") -> Chroma:
         logging.error(f"Erro ao carregar vectorstore: {e}")
         raise
 
-def build_retriever_chain(modelo_llm: str, persist_directory: str = "vectorstore") -> RetrievalQA:
+def build_retriever_chain(modelo_llm: str, memory: ConversationBufferMemory,persist_directory: str = "vectorstore") -> ConversationalRetrievalChain:
     """
     Cria a cadeia de QA usando o modelo Ollama LLM + Chroma como retriever, com memória de conversa.
     """
@@ -34,69 +34,44 @@ def build_retriever_chain(modelo_llm: str, persist_directory: str = "vectorstore
         vectordb: Chroma = load_vectorstore(persist_directory)
         retriever = vectordb.as_retriever(search_kwargs={"k": 4})
 
-        # Memória da conversa
-        memory = ConversationBufferMemory(
-            memory_key="chat_history",
-            input_key="question",
-            return_messages=True,
-            output_key="answer"
-        )
-
-        # Prompt estruturado em inglês
+        # Prompt estruturado
         prompt_template = PromptTemplate(
-            input_variables=["context", "question"],
+            input_variables=["context", "question", "chat_history"],
             template="""
-You are an expert assistant specialized in document analysis. Your goal is to extract relevant
-information from the provided context and deliver an accurate, well-structured response strictly
-based on the available data, following logical reasoning.\n\n
+Você é uma assistente especialista em análise de documentos.
 
-### Context:
+Sua tarefa é analisar o contexto fornecido e responder à pergunta do usuário com clareza, **apenas com base nas informações disponíveis no contexto**.
+
+Use internamente técnicas como **Cadeia de Raciocínio (Chain-of-Thought)** e **Autorreflexão (Self-Reflection)** para garantir que a resposta final seja correta, mas **não exiba esses passos para o usuário**.
+
+---
+
+### Regras:
+1. **Responda no mesmo idioma da pergunta do usuário**.
+2. Não invente informações — use apenas o que estiver no contexto.
+3. Se não houver dados suficientes, diga:  
+   **"Não encontrei informações suficientes no contexto fornecido."**
+4. A resposta deve ser clara, objetiva e bem estruturada. Use parágrafos curtos ou bullet points.
+
+---
+Histórico da Conversa:
+{chat_history}
+
+Contexto Atual:
 {context}
 
-### Instructions:
-Follow a structured reasoning process to ensure accurate answers. Use **Chain-of-Thought (CoT)** and 
-**Self-Reflection** techniques before finalizing your response. Your answer **must be in the same language as the question**.
-
-#### Step 1: Understanding the Question
-1. Identify the key components of the question.
-2. Detect the language of the question and ensure the response is in the same language.
-3. Determine if multiple interpretations exist and clarify them.
-
-#### Step 2: Analyzing the Context (Chain-of-Thought)
-4. Break down the reasoning step-by-step based on the provided context.
-5. Extract relevant evidence from the context and **cite specific excerpts** when applicable.
-6. If there are conflicting pieces of information, summarize both and provide a balanced conclusion.
-
-#### Step 3: Generating a Structured Response
-7. Ensure the response is **clear, concise, and logically structured**.
-8. If needed, present the answer in bullet points or sections for better readability.
-
-#### Step 4: Self-Reflection & Verification
-9. Before finalizing, verify the response by asking:
-   - Does it strictly adhere to the provided context?
-   - Does it avoid assumptions or hallucinations?
-   - Is the reasoning clear and logically sound?
-   - Are relevant excerpts cited when necessary?
-10. If any issue is found, refine the response before displaying it to the user.
-
-11. If the answer is not found in the provided context, explicitly state: "I did not find sufficient information."
-
-### User Question:
+Pergunta Atual:
 {question}
-
-**Final Answer (respond in the same language as the question):**
 """
         )
 
-        qa_chain = RetrievalQA.from_chain_type(
+        qa_chain = ConversationalRetrievalChain.from_llm(
             llm=llm,
-            chain_type="stuff",
             retriever=retriever,
+            memory=memory,
+            combine_docs_chain_kwargs={"prompt": prompt_template},
             return_source_documents=True,
-            chain_type_kwargs={
-                "prompt": prompt_template,
-                "verbose": True
-            }
+            verbose=True
         )
 
         logging.info("Cadeia de QA com retriever, memória e prompt customizado criada com sucesso.")

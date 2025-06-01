@@ -37,8 +37,10 @@ def show_login_page():
                         st.session_state.chat_history = []
                         for conversa in historico:
                             for msg in conversa["mensagens"]:
+                                # Mapeia 'usuario' para 'user' e 'bot' permanece como 'bot'
+                                role = "user" if msg["tipo"] == "usuario" else "bot"
                                 st.session_state.chat_history.append({
-                                    "role": msg["tipo"],
+                                    "role": role,
                                     "text": msg["texto"]
                                 })
                     st.rerun()

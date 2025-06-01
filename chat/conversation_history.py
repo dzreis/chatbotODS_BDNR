@@ -41,7 +41,7 @@ def recuperar_historico(usuario: str, limite: int = 10) -> List[Dict]:
     """
     try:
         historico = list(
-            colecao_conversas.find({"usuario": usuario}).sort("timestamp", -1).limit(limite)
+            colecao_conversas.find({"cod": usuario}).sort("timestamp", -1).limit(limite)
         )
         logging.info(f"{len(historico)} interações recuperadas para usuário: {usuario}")
         return historico

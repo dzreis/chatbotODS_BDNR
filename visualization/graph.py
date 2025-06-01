@@ -6,109 +6,107 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 import re
 from datetime import datetime, timedelta
-import pandas as pd
-import os
-from dotenv import load_dotenv
+from collections import Counter
 import streamlit as st
+import nltk
+import spacy
+import difflib
+import seaborn as sns
+from matplotlib.patches import FancyBboxPatch
+import matplotlib.patches as mpatches
+
+nltk.download("stopwords")
+from nltk.corpus import stopwords
+
+# Carregando modelo de linguagem do spaCy
+nlp = spacy.load("pt_core_news_sm")
+
+# Stopwords personalizadas (pode ajustar conforme necessário)
+CUSTOM_STOPWORDS = set(stopwords.words("portuguese")).union({
+    "me", "minha", "qual", "mais", "foi", "última", "sobre", "pergunta", "contra", "minhas", "vez", "vezes"
+})
 
 class ChatbotMindMapGenerator:
-    def __init__(self, mongo_uri, database_name, collection_name):
+    def __init__(self, mongo_uri: str, database_name: str, collection_name: str):
+        """Initialize the ChatbotMindMapGenerator with MongoDB connection parameters."""
         self.client = MongoClient(mongo_uri)
         self.db = self.client[database_name]
         self.collection = self.db[collection_name]
-        self.stop_words = {'o', 'a', 'os', 'as', 'de', 'da', 'do', 'das', 'dos', 'e', 'ou',
-                          'mas', 'por', 'para', 'com', 'em', 'no', 'na', 'nos', 'nas',
-                          'que', 'como', 'quando', 'onde', 'eu', 'tu', 'ele', 'ela',
-                          'nós', 'vós', 'eles', 'elas', 'um', 'uma', 'uns', 'umas'}
+        self.stop_words = set(stopwords.words("portuguese"))
 
     def fetch_chatbot_messages(self, usuario_id, limit=1000, days_back=30):
         try:
             date_filter = datetime.now() - timedelta(days=days_back)
-            
-            # Busca o documento de conversas do usuário
             conversa = self.collection.find_one({
                 "cod": usuario_id,
-                "mensagens": {
-                    "$elemMatch": {
-                        "timestamp": {"$gte": date_filter}
-                    }
-                }
+                "mensagens": {"$elemMatch": {"timestamp": {"$gte": date_filter}}}
             })
-            
             mensagens_usuario = []
-            
             if conversa and "mensagens" in conversa:
-                # Filtra mensagens do usuário dentro do período
                 for msg in conversa["mensagens"]:
-                    if (msg.get("tipo") == "usuario" and 
-                        "texto" in msg and 
+                    if (msg.get("tipo") == "usuario" and "texto" in msg and 
                         msg.get("timestamp", datetime.now()) >= date_filter):
                         mensagens_usuario.append({"text": msg["texto"]})
                     if len(mensagens_usuario) >= limit:
                         break
-                        
-            print(f"Encontradas {len(mensagens_usuario)} mensagens de usuários")
             return mensagens_usuario
-
         except Exception as e:
             print(f"Erro ao buscar mensagens: {e}")
-            return []
-
-    def extract_keywords(self, messages, min_freq=2, max_features=50):
-        texts = [self.clean_text(msg['text']) for msg in messages if 'text' in msg]
-        if not texts:
-            print("Nenhum texto encontrado nas mensagens")
-            return []
-
-        vectorizer = TfidfVectorizer(
-            max_features=max_features,
-            stop_words=list(self.stop_words),
-            min_df=min_freq,
-            ngram_range=(1, 2),
-            token_pattern=r'[a-zà-ú]+',
-            lowercase=True
-        )
-
-        try:
-            tfidf_matrix = vectorizer.fit_transform(texts)
-            feature_names = vectorizer.get_feature_names_out()
-            mean_scores = np.mean(tfidf_matrix.toarray(), axis=0)
-            word_scores = list(zip(feature_names, mean_scores))
-            word_scores.sort(key=lambda x: x[1], reverse=True)
-            keywords = [word for word, score in word_scores if score > 0]
-            print(f"Extraídas {len(keywords)} palavras-chave relevantes")
-            return keywords[:max_features]
-
-        except Exception as e:
-            print(f"Erro na extração de palavras-chave: {e}")
             return []
 
     def clean_text(self, text):
         text = re.sub(r'http\S+|www\S+|@\w+|#\w+', '', text)
         text = re.sub(r'[^a-zà-úA-ZÀ-Ú\s]', '', text)
         text = ' '.join(text.split())
-        return text.lower()
+        return ' '.join([w for w in text.lower().split() if len(w) > 2])
+
+    def preprocess_and_extract_keywords(self, mensagens, top_n=30):
+        documentos = [msg["text"] for msg in mensagens if "text" in msg]
+        palavras_filtradas = []
+        for doc in documentos:
+            doc_spacy = nlp(doc.lower())
+            palavras_doc = [
+                token.lemma_ for token in doc_spacy
+                if token.is_alpha and token.lemma_ not in CUSTOM_STOPWORDS and token.pos_ in {"NOUN", "VERB"}
+            ]
+            palavras_filtradas.append(" ".join(palavras_doc))
+
+        vectorizer = TfidfVectorizer()
+        X = vectorizer.fit_transform(palavras_filtradas)
+        palavras = vectorizer.get_feature_names_out()
+        scores = X.toarray().sum(axis=0)
+
+        palavras_score = {palavra: pontuacao for palavra, pontuacao in zip(palavras, scores)}
+        palavras_importantes = sorted(palavras_score.items(), key=lambda x: x[1], reverse=True)[:top_n]
+        palavras_top = [palavra for palavra, _ in palavras_importantes]
+
+        grupos = {}
+        for palavra in palavras_top:
+            encontrada = False
+            for chave in grupos:
+                if difflib.SequenceMatcher(None, palavra, chave).ratio() > 0.85:
+                    grupos[chave].append(palavra)
+                    encontrada = True
+                    break
+            if not encontrada:
+                grupos[palavra] = [palavra]
+
+        palavras_finais = [min(grupo, key=len) for grupo in grupos.values()]
+        return palavras_finais, palavras_score
 
     def calculate_word_similarity(self, keywords):
         if len(keywords) < 2:
             return np.array([[1]])
-
         contexts = []
         for keyword in keywords:
             context_texts = []
             regex_pattern = re.compile(keyword, re.IGNORECASE)
-            matching_messages = self.collection.find({
-                "mensagens.texto": {"$regex": regex_pattern}
-            }).limit(20)
-
+            matching_messages = self.collection.find({"mensagens.texto": {"$regex": regex_pattern}}).limit(20)
             for msg_doc in matching_messages:
                 for msg in msg_doc.get("mensagens", []):
                     if keyword.lower() in msg.get("texto", "").lower():
                         context_texts.append(self.clean_text(msg["texto"]))
-
-            if not context_texts:
-                context_texts = [keyword]
-            contexts.append(' '.join(context_texts))
+            contexts.append(' '.join(context_texts) if context_texts else keyword)
 
         vectorizer = TfidfVectorizer(stop_words=list(self.stop_words))
         try:
@@ -116,90 +114,191 @@ class ChatbotMindMapGenerator:
             similarity_matrix = cosine_similarity(tfidf_matrix)
             similarity_matrix[similarity_matrix < 0.1] = 0
             return similarity_matrix
-
         except Exception as e:
             print(f"Erro no cálculo de similaridade: {e}")
             return np.eye(len(keywords))
 
-    def create_mindmap_graph(self, keywords, similarity_matrix):
+    def build_graph(self, keywords, similarity_matrix, threshold=0.1):
         G = nx.Graph()
         for i, keyword in enumerate(keywords):
             G.add_node(i, label=keyword)
-
         n = len(keywords)
         for i in range(n):
             for j in range(i + 1, n):
-                if similarity_matrix[i][j] > 0:
-                    G.add_edge(i, j, weight=similarity_matrix[i][j])
+                weight = similarity_matrix[i][j]
+                if weight >= threshold:
+                    G.add_edge(i, j, weight=weight)
 
+        G.remove_nodes_from([node for node, degree in dict(G.degree()).items() if degree == 0])
         return G
 
-    def save_keywords(self, keywords):
-        try:
-            keyword_docs = [{'keyword': kw, 'created_at': datetime.now()} for kw in keywords]
-            self.db['keywords'].insert_many(keyword_docs)
-            print(f"✅ {len(keywords)} palavras-chave salvas na coleção 'keywords'")
-        except Exception as e:
-            print(f"Erro ao salvar palavras-chave: {e}")
-
-    def save_keyword_relations(self, keywords, similarity_matrix, threshold=0.1):
-        try:
-            relations = []
-            n = len(keywords)
-            for i in range(n):
-                for j in range(i + 1, n):
-                    weight = similarity_matrix[i][j]
-                    if weight >= threshold:
-                        relations.append({
-                            'source': keywords[i],
-                            'target': keywords[j],
-                            'weight': float(weight),
-                            'created_at': datetime.now()
-                        })
-            if relations:
-                self.db['relations'].insert_many(relations)
-                print(f"✅ {len(relations)} relações salvas na coleção 'relations'")
+    def categorize_keywords(self, keywords, palavras_score):
+        """Categoriza as palavras-chave por importância e tipo"""
+        # Obter scores das palavras
+        scores = [palavras_score.get(kw, 0) for kw in keywords]
+        
+        # Definir categorias baseadas em quartis
+        q75, q50, q25 = np.percentile(scores, [75, 50, 25])
+        
+        categories = {}
+        for i, (kw, score) in enumerate(zip(keywords, scores)):
+            if score >= q75:
+                categories[i] = 'high'
+            elif score >= q50:
+                categories[i] = 'medium'
+            elif score >= q25:
+                categories[i] = 'low'
             else:
-                print("⚠️ Nenhuma relação relevante para salvar")
-        except Exception as e:
-            print(f"Erro ao salvar relações: {e}")
+                categories[i] = 'minimal'
+        
+        return categories
+
+    def get_node_colors_and_sizes(self, G, categories):
+        """Define cores e tamanhos dos nós baseados na categoria"""
+        color_map = {
+            'high': '#FF6B6B',      # Vermelho vibrante
+            'medium': '#4ECDC4',    # Turquesa
+            'low': '#45B7D1',       # Azul
+            'minimal': '#96CEB4'    # Verde claro
+        }
+        
+        size_map = {
+            'high': 2000,
+            'medium': 1500,
+            'low': 1000,
+            'minimal': 700
+        }
+        
+        node_colors = [color_map.get(categories.get(node, 'minimal'), '#96CEB4') for node in G.nodes()]
+        node_sizes = [size_map.get(categories.get(node, 'minimal'), 700) for node in G.nodes()]
+        
+        return node_colors, node_sizes
+
+    def visualize_graph_streamlit(self, G, keywords, palavras_score=None):
+        """Visualização simplificada do mapa mental - estilo da imagem"""
+        st.title("Mapa Mental do Chatbot")
+        st.caption("Principais temas das conversas")
+        
+        # Se não há nós suficientes, usar layout simples
+        if len(G.nodes()) == 0:
+            st.warning("Nenhum dado disponível para visualização")
+            return
+        
+        # Criar figura com fundo claro
+        fig, ax = plt.subplots(figsize=(14, 10))
+        fig.patch.set_facecolor('#0E1117')
+        ax.set_facecolor('#0E1117')
+        
+        # Cores simples e atrativas (palette similar à imagem)
+        cores_disponiveis = [
+            '#FF6B9D',  # Rosa
+            '#4ECDC4',  # Turquesa  
+            '#45B7D1',  # Azul
+            '#96CEB4',  # Verde
+            '#FECA57',  # Amarelo
+            '#A29BFE',  # Roxo claro
+            '#FD79A8',  # Rosa claro
+            '#00CEC9',  # Ciano
+            '#6C5CE7',  # Púrpura
+            '#FDCB6E'   # Laranja claro
+        ]
+        
+        # Layout circular ao redor do centro
+        if len(G.nodes()) == 1:
+            pos = {list(G.nodes())[0]: (2, 0)}
+        else:
+            pos = nx.circular_layout(G, scale=4)
+        
+        # Desenhar linhas pontilhadas conectando ao centro
+        center = (0, 0)
+        for node in pos:
+            x_vals = [center[0], pos[node][0]]
+            y_vals = [center[1], pos[node][1]]
+            ax.plot(x_vals, y_vals, ':', color="#FDFEFF", alpha=0.7, linewidth=2)
+        
+        # Desenhar círculo central
+        central_circle = plt.Circle((0, 0), 1.2, 
+                                color='white', 
+                                alpha=1,
+                                zorder=2,
+                                linewidth=3,
+                                edgecolor="#E3F1FF")
+        ax.add_patch(central_circle)
+        
+        ax.text(0, 0, 'PRINCIPAIS\nTEMAS DAS\nCONVERSAS', 
+            ha='center', va='center',
+            fontsize=12, fontweight='bold',
+            color='#2C3E50',
+            zorder=4)
+        
+        # Desenhar os nós como círculos coloridos
+        for i, (node, (x, y)) in enumerate(pos.items()):
+            cor = cores_disponiveis[i % len(cores_disponiveis)]
+            
+            # Determinar tamanho baseado na importância (se disponível)
+            if palavras_score:
+                palavra = keywords[node]
+                score = palavras_score.get(palavra, 0)
+                scores = list(palavras_score.values())
+                if scores:
+                    normalized_score = (score - min(scores)) / (max(scores) - min(scores)) if max(scores) != min(scores) else 0.5
+                    raio = 0.5 + (normalized_score * 0.8)  # Raio entre 0.5 e 1.3
+                else:
+                    raio = 0.8
+            else:
+                raio = 0.8
+            
+            # Círculo colorido
+            circle = plt.Circle((x, y), raio, 
+                            color=cor, 
+                            alpha=0.85,
+                            zorder=3)
+            ax.add_patch(circle)
+            
+            # Texto da palavra-chave
+            palavra = keywords[node].upper()
+            
+            # Quebrar palavras longas em múltiplas linhas
+            if len(palavra) > 10:
+                palavras = palavra.split()
+                if len(palavras) > 1:
+                    meio = len(palavras) // 2
+                    palavra = '\n'.join([' '.join(palavras[:meio]), ' '.join(palavras[meio:])])
+            
+            ax.text(x, y, palavra, 
+                ha='center', va='center',
+                fontsize=8, fontweight='bold',
+                color='white',
+                zorder=4)
+        
+        # Configurar limites e aspecto
+        ax.set_xlim(-6, 6)
+        ax.set_ylim(-6, 6)
+        ax.set_aspect('equal')
+        ax.axis('off')
+        
+        plt.tight_layout()
+        st.pyplot(fig)
+        plt.close()
 
     def run_full_analysis(self, usuario_id, limit=1000, days_back=30):
         print("🚀 Iniciando análise do chatbot...")
         messages = self.fetch_chatbot_messages(usuario_id, limit, days_back)
         if not messages:
             print("❌ Nenhuma mensagem encontrada!")
-            return None, None, None  # Return tuple of None values
-
-        keywords = self.extract_keywords(messages)
+            return None, None, None
+        
+        keywords, palavras_score = self.preprocess_and_extract_keywords(messages)
         if not keywords:
             print("❌ Nenhuma palavra-chave extraída!")
-            return None, None, None  # Return tuple of None values
-
+            return None, None, None
+            
         print("🔍 Calculando similaridades...")
         similarity_matrix = self.calculate_word_similarity(keywords)
-
+        self._last_similarity_matrix = similarity_matrix  # Salvar para uso posterior
+        
         print("🕸️ Criando grafo...")
-        G = self.create_mindmap_graph(keywords, similarity_matrix)
-
-        self.save_keywords(keywords)
-        self.save_keyword_relations(keywords, similarity_matrix)
-
+        G = self.build_graph(keywords, similarity_matrix)
+        
         print("✅ Análise concluída!")
-        return G, keywords, similarity_matrix
-    
-    def visualize_graph_streamlit(self, G, keywords):
-        
-        fig, ax = plt.subplots(figsize=(10, 10))
-        pos = nx.spring_layout(G)
-        
-        nx.draw(G, pos, 
-                with_labels=True,
-                labels={i: keywords[i] for i in G.nodes()},
-                node_color='lightblue',
-                node_size=1000,
-                font_size=8,
-                ax=ax)
-        
-        st.pyplot(fig)
-        plt.close()
+        return G, keywords, similarity_matrix, palavras_score
