@@ -34,7 +34,8 @@ if "chat_history" not in st.session_state:
 if not st.session_state.user:
     show_login_page()
 else:
-    st.title("📄 Chatbot de ajuda")
+    st.title("📄🔒 ProtegeEla")
+    st.subheader("Se você está sofrendo violência ou conhece alguém nessa situação, ligue para o 180 e busque ajuda — sua vida e segurança importam.")
     
     # Mostrar informações do usuário
     st.sidebar.write(f"Usuário: {st.session_state.user['nome']}")
