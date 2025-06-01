@@ -1,14 +1,39 @@
-# Funções para extrair e chunkar os textos
+# Funções para extrair, limpar e chunkar os textos
 import logging
 import os
 import json
 import fitz  # PyMuPDF
+import string
+import nltk
+from nltk.corpus import stopwords
+from nltk.tokenize import word_tokenize
+from unidecode import unidecode
 from langchain.text_splitter import RecursiveCharacterTextSplitter
+
+# Baixar os recursos necessários do NLTK
+nltk.download('stopwords')
+nltk.download('punkt')
+
+def preprocess_text(text, idioma='portuguese'):
+    """
+    Remove acentuação, stopwords e pontuação do texto.
+    """
+    # Remover acentuação
+    text = unidecode(text)
+    
+    # Tokenização e filtragem
+    stop_words = set(stopwords.words(idioma))
+    tokens = word_tokenize(text.lower(), language=idioma)
+    tokens_filtrados = [
+        palavra for palavra in tokens
+        if palavra not in stop_words and palavra not in string.punctuation
+    ]
+    return " ".join(tokens_filtrados)
 
 def extract_text(folder_path):
     """
     Extrai texto de todos os arquivos PDF da pasta.
-    Retorna uma lista de dicionários com 'source' e 'content'.
+    Retorna uma lista de dicionários com 'source' e 'content' (pré-processado).
     """
     docs = []
     for filename in os.listdir(folder_path):
@@ -19,7 +44,8 @@ def extract_text(folder_path):
                     text = ""
                     for page in pdf:
                         text += page.get_text()
-                    docs.append({"source": filename, "content": text})
+                    texto_preprocessado = preprocess_text(text)
+                    docs.append({"source": filename, "content": texto_preprocessado})
             except Exception as e:
                 logging.warning(f"Erro ao processar {filename}: {e}")
     return docs
@@ -27,7 +53,7 @@ def extract_text(folder_path):
 def chunking(docs, chunk_size=500, chunk_overlap=50):
     """
     Divide o conteúdo dos documentos em pedaços (chunks) usando Langchain.
-    Divide a cada 500 caractere com overlap de 50.
+    Divide a cada 500 caracteres com overlap de 50.
     """
     splitter = RecursiveCharacterTextSplitter(
         chunk_size=chunk_size,
